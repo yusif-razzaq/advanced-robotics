@@ -24,7 +24,7 @@ from matplotlib.figure import Figure
 
 from hw4_rl.envs import GridworldEnv
 
-student_name = "My Name"  # Set to your name
+student_name = "Yusif Razzaq"  # Set to your name
 GRAD = True  # Set to True if graduate student
 
 
@@ -230,7 +230,7 @@ class GridworldSolver:
 
     def __init__(
         self,
-        policy_type: str = "deterministic_vi",
+        policy_type: str = "vi",
         gridworld_map_number: int = 0,
         noisy_transitions: bool = False,
     ) -> None:
@@ -239,7 +239,7 @@ class GridworldSolver:
 
         Args:
             policy_type: The type of policy computation to use. Must be one of:
-                ["deterministic_vi", "stochastic_pi", "deterministic_pi"]
+                ["vi", "stochastic_pi", "pi"]
             gridworld_map_number: Which gridworld map to use (0 or 1)
             noisy_transitions: Whether to use noisy state transitions
             max_ent_temperature: Temperature parameter for stochastic policies
@@ -248,7 +248,7 @@ class GridworldSolver:
             AssertionError: If policy_type is not one of the allowed values
         """
         self._policy_type = policy_type
-        assert policy_type in ["deterministic_vi", "stochastic_pi", "deterministic_pi"]
+        assert policy_type in ["vi", "stochastic_pi", "pi"]
         self.env: Optional[gym.Env] = None
         self.env_name = ""
         self.init_environment(gridworld_map_number, noisy_transitions)
@@ -295,11 +295,9 @@ class GridworldSolver:
         This method selects and runs the appropriate policy computation algorithm based on
         the policy_type specified during initialization.
         """
-        if self._policy_type == "deterministic_vi":
+        if self._policy_type == "vi":
             self._value_iteration()
-        elif self._policy_type == "stochastic_pi":
-            self._stochastic_policy_iteration()
-        else:  # deterministic_pi
+        else:  # pi
             self._deterministic_policy_iteration()
 
     def solve(
@@ -370,9 +368,11 @@ class GridworldSolver:
 
         if filename is None:
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            figures_dir = os.path.join(script_dir, "..", "..", "hw4_rl", "figures")
+            figures_dir = os.path.join(script_dir, "..", "..", "saved_figures")
             os.makedirs(figures_dir, exist_ok=True)
-            filename = os.path.join(figures_dir, f"{self.env_name}_{self._policy_type}_gamma={self.gamma}_learning.png")
+            subdir = os.path.join(figures_dir, f"{self.env_name}/{self._policy_type}")
+            os.makedirs(subdir, exist_ok=True)
+            filename = os.path.join(subdir, f"gamma={self.gamma}_learning.png")
 
         plt.savefig(filename, dpi=150, bbox_inches='tight')
         plt.close()
@@ -475,12 +475,9 @@ class GridworldSolver:
         
         # Save plot
         if filename is None:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            figures_dir = os.path.join(script_dir, "..", "..", "hw4_rl", "figures")
-            os.makedirs(figures_dir, exist_ok=True)
-            filename = os.path.join(
-                figures_dir, f"{self.env_name}_{self._policy_type}_gamma={self.gamma}_value.png"
-            )
+            figures_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../saved_figures")
+            os.makedirs(os.path.join(figures_dir, f"{self.env_name}/{self._policy_type}"), exist_ok=True)
+            filename = os.path.join(figures_dir, f"{self.env_name}/{self._policy_type}/gamma={self.gamma}_value.png")
         plt.savefig(filename, dpi=150, bbox_inches='tight')
 
         # Convert to image array
@@ -558,10 +555,12 @@ class GridworldSolver:
 
         if filename is None:
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            figures_dir = os.path.join(script_dir, "..", "..", "hw4_rl", "figures")
+            figures_dir = os.path.join(script_dir, "..", "..", "saved_figures")
             os.makedirs(figures_dir, exist_ok=True)
+            subdir = os.path.join(figures_dir, f"{self.env_name}/{self._policy_type}")
+            os.makedirs(subdir, exist_ok=True)
             filename = os.path.join(
-                figures_dir, f"{self.env_name}_{self._policy_type}_gamma={self.gamma}_policy.png"
+                subdir, f"gamma={self.gamma}_policy.png"
             )
 
         plt.savefig(filename, dpi=150, bbox_inches='tight')
@@ -628,13 +627,37 @@ class GridworldSolver:
         for _ in range(horizon):
             # Student code here     
             # Update value function
-            pass  # Placeholder for student implementation
+            delta = 0
+            for s in range(unwrapped_env.num_states):
+                v_i_old = v_i[s]
+                max_value = -float('inf')
+                for a in unwrapped_env.actions:
+                    value = 0
+                    for s_prime in range(unwrapped_env.num_states):
+                        if T[s, a, s_prime] == 0:
+                            continue
+                        value += T[s, a, s_prime] * (R[s, a, s_prime] + self.gamma * v_i[s_prime])
+                    if value > max_value:
+                        max_value = value
+                v_i[s] = max_value
+                delta = max(delta, abs(v_i[s] - v_i_old))
+            if delta < self.eps:
+                break
 
-            # Update policy
-            pass  # Placeholder for student implementation
-
-            # Check convergence 
-            pass  # Placeholder for student implementation
+        for s in range(unwrapped_env.num_states):
+            best_action = 0
+            max_value = -float('inf')
+            for a in unwrapped_env.actions:
+                value = 0
+                for s_prime in range(unwrapped_env.num_states):
+                    if T[s, a, s_prime] == 0:
+                        continue
+                    value += T[s, a, s_prime] * (R[s, a, s_prime] + self.gamma * v_i[s_prime])
+                if value > max_value:
+                    max_value = value
+                    best_action = a
+            p_i[s] = np.zeros(unwrapped_env.num_actions)
+            p_i[s][best_action] = 1.0
 
         self.solver.set_policy_function(p_i)
         self.solver.set_value_function(v_i)
@@ -680,14 +703,6 @@ class GridworldSolver:
             )
         )
 
-        print(f"Number of states: {T.shape[0]}")
-        print(f"Number of actions: {T.shape[1]}")
-        print(f"Number of transitions: {T.shape[2]}")
-        print(f"Number of rewards: {R.shape[0]}")
-        print(f"Number of actions: {R.shape[1]}")
-        print(f"Number of transitions: {R.shape[2]}")
-        print(f"Size of Policy: {p_i.shape}")
-
         for s in range(unwrapped_env.num_states):
             s_coord = self.solver.get_coordinates_from_state_index(s)
             for a in unwrapped_env.actions:
@@ -715,7 +730,7 @@ class GridworldSolver:
             for _ in range(horizon):
                 # Get expected value for current policy
                 for s in range(unwrapped_env.num_states):
-                    a = max( enumerate(p_i[s]), key=lambda x: x[1])[0]
+                    a = max(enumerate(p_i[s]), key=lambda x: x[1])[0]
                     value = 0
                     for s_prime in range(unwrapped_env.num_states):
                         if T[s, a, s_prime] == 0:
@@ -766,10 +781,10 @@ class GridworldSolver:
 if __name__ == "__main__":
 
     ############ Q1.1 ############
-    gw0_solver = GridworldSolver(policy_type="deterministic_pi", gridworld_map_number=0)
-    gw1_solver = GridworldSolver(policy_type="deterministic_pi", gridworld_map_number=1)
+    gw0_pi_solver = GridworldSolver(policy_type="pi", gridworld_map_number=0)
+    gw1_pi_solver = GridworldSolver(policy_type="pi", gridworld_map_number=1)
 
-    for solver in [gw0_solver, gw1_solver]:
+    for solver in [gw0_pi_solver, gw1_pi_solver]:
         for gamma in [0.99, 0.9, 0.75, 0.5]:
             solver.gamma = gamma
             start_time = time.time()
@@ -782,17 +797,14 @@ if __name__ == "__main__":
 
 
     ############ Q1.2 ############
-    # gw0_det_solver = GridworldSolver(
-    #     policy_type="deterministic_vi", gridworld_map_number=0
-    # )
-    
-    # gw1_det_solver = GridworldSolver(
-    #     policy_type="deterministic_vi", gridworld_map_number=0
-    # )
-    # for solver in [gw0_det_solver, gw1_det_solver]:
-    #     print("Starting!")
-    #     start_time = time.time()
-    #     solver.compute_policy()
-    #     elapsed_time = time.time() - start_time
-    #     print("Computed Q1.a VI Policy in %g seconds" % elapsed_time)
-    #     solver.plot_value_function(solver.solver.get_value_function())
+    gw0_vi_solver = GridworldSolver(policy_type="vi", gridworld_map_number=0)
+    gw1_vi_solver = GridworldSolver(policy_type="vi", gridworld_map_number=1)
+    for solver in [gw0_vi_solver, gw1_vi_solver]:
+        for gamma in [0.99, 0.9, 0.75, 0.5]:
+            solver.gamma = gamma
+            start_time = time.time()
+            solver.compute_policy()
+            elapsed_time = time.time() - start_time
+            print("Computed Q1.a VI Policy in %g seconds" % elapsed_time)
+            _, fig = solver.plot_value_function(solver.solver.get_value_function())
+            solver.plot_policy(solver.solver.get_policy_function(), ax=fig.axes[0])
