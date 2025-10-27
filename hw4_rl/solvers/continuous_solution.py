@@ -394,10 +394,9 @@ class DiscretizedSolver:
             List of tuples (state_index, probability) for the discrete states
         """
         if self._mode == "nn":
-            # Student code here
-            # Find the nearest neighbor
-            pass  # Placeholder for student implementation
-            return [(0, 1.0)]  # Placeholder return value
+            state_index = self.get_state_index_from_coordinates(continuous_state)   
+            # print(f"Mapping continuous {continuous_state} to nearest neighbor to {state_index}")
+            return [(state_index, 1.0)]
         else:  # linear interpolation
             # Get neighboring grid points
             offsets = np.array(
@@ -405,19 +404,26 @@ class DiscretizedSolver:
             )
             neighbor_coords = continuous_state + offsets * self.bin_sizes
 
+
             # Find valid neighbors
-            # Student code here
-            pass  # Placeholder for student implementation
-
-            # Convert to state indices
-            # Student code here
-            pass  # Placeholder for student implementation
-
-            # Calculate interpolation weights
-            # Student code here
-            pass  # Placeholder for student implementation
-
-            return [(0, 1.0)]  # Placeholder return value
+            transition_probabilities = []
+            for i, coord in enumerate(neighbor_coords):
+                if np.all(coord >= self.state_lower_bound) and np.all(coord <= self.state_upper_bound):
+                    state_index = self.get_state_index_from_coordinates(coord)
+                    # Compute distance as scalar (use L2 norm)
+                    distance = np.linalg.norm(coord - continuous_state)
+                    transition_probabilities.append((state_index, distance))
+            
+            # Normalize by inverse distance (closer = higher weight)
+            if transition_probabilities:
+                # Invert distances for weighting (closer = higher weight)
+                # Adding small epsilon to avoid division by zero
+                weights = [1.0 / (weight + 1e-10) for _, weight in transition_probabilities]
+                total_weight = sum(weights)
+                return [(state_index, weight / total_weight) for (state_index, _), weight in zip(transition_probabilities, weights)]
+            else:
+                # Fallback if no valid neighbors found
+                return [(self.get_state_index_from_coordinates(continuous_state), 1.0)]
 
 
     def compute_policy(self, max_iterations: int = 100, min_iter: int = 5, eval_sample_size: int = 15) -> None:
@@ -434,14 +440,8 @@ class DiscretizedSolver:
         """
         if self._policy_type == "deterministic_vi":
             self._value_iteration(max_iterations, min_iter, eval_sample_size)
-        elif self._policy_type == "stochastic_pi":
-            self._stochastic_policy_iteration(
-                max_iterations, min_iter, eval_sample_size
-            )
         else:  # deterministic_pi
-            self._deterministic_policy_iteration(
-                max_iterations, min_iter, eval_sample_size
-            )
+            print("Deterministic PI not implemented")
 
     def _value_iteration(self, max_iterations: int, min_iter: int, eval_sample_size: int) -> None:
         """
@@ -466,107 +466,42 @@ class DiscretizedSolver:
         value_function = np.zeros(self.solver.num_states)
         policy = np.zeros((self.solver.num_states, self.solver.num_actions))
 
-        for i in range(max_iterations):
+        T = self.solver._transition_function
+        R = self.solver._reward_function
+
+        for i in range(300):
             iter_start_time = time.time()
-
-            # Compute Q-values
-            # Student code here
-
-            # Update value function and policy
-            # Check convergence
-            value_diff = np.max(np.abs(new_values - value_function))
-
-            # Evaluate current policy
-            self.solver.set_policy_function(policy)
-            self.solver.set_value_function(value_function)
-            reward, steps = self.solve(max_steps=200, sample_size=eval_sample_size)
-            self.performance_history.append(reward)
-
-            print(
-                f"VI Iteration {i}, diff {value_diff:.6f}, "
-                f"elapsed {time.time() - iter_start_time:.3f}, "
-                f"performance {reward:.2f}"
-            )
+            value_function_old = value_function.copy()
             
-    def _deterministic_policy_iteration(
-        self, max_iterations, min_iter, eval_sample_size
-    ):
-        """
-        Implement deterministic policy iteration.
-
-        Students need to:
-        1. Policy Evaluation:
-           - Update value function using current policy's transition and reward functions
-           - Iterate until convergence or horizon reached
-        
-        2. Policy Improvement:
-           - Compute Q-values using current value function
-           - Update policy to be deterministic, choosing action with highest Q-value
-           - Check if policy is stable (unchanged from previous iteration)
-           - Set policy_stable flag based on whether policy changed
-
-        Args:
-            max_iterations: Maximum number of iterations to run
-            min_iter: Minimum number of iterations before checking convergence
-            eval_sample_size: Number of episodes to use for policy evaluation
-        """
-        eps_value = 1e-5
-        horizon = 100
-
-        # Initialize random deterministic policy
-        policy = np.zeros((self.solver.num_states, self.solver.num_actions))
-        policy[
-            np.arange(self.solver.num_states),
-            np.random.randint(0, self.solver.num_actions, size=self.solver.num_states),
-        ] = 1.0
-        value_function = np.zeros(self.solver.num_states)
-
-        for k in range(max_iterations):
-            iter_start_time = time.time()
-
-            # Policy evaluation
-            policy_T = np.sum(
-                self.solver._transition_function * policy[:, :, np.newaxis], axis=1
-            )
-            policy_R = np.sum(
-                self.solver._reward_function * policy[:, :, np.newaxis], axis=1
-            )
-
-            for _ in range(horizon):
-                # Student code here
-                # Update value function
-                pass  # Placeholder for student implementation
-
-            # Policy improvement
-            # Student code here
-            pass  # Placeholder for student implementation
-
-            # Student code here
-            pass  # Placeholder for student implementation
-
+            # Compute Q-values for all state-action pairs
+            Q = np.sum(T * (R + self.gamma * value_function), axis=2)
+            
+            # Update value function: V[s] = max_a Q[s, a]
+            value_function = np.max(Q, axis=1)
+            
             # Check convergence
-            pass  # Placeholder for student implementation
-
-            # Update and evaluate
-            self.solver.set_policy_function(policy)
-            self.solver.set_value_function(value_function)
-            reward, steps = self.solve(max_steps=200, sample_size=eval_sample_size)
-            self.performance_history.append(reward)
-
-            print(
-                f"Deterministic PI Iteration {k}, "
-                f"elapsed {time.time() - iter_start_time:.3f}, "
-                f"performance {reward:.2f}"
-            )
-
-            if policy_stable and k >= min_iter:
+            delta = np.max(np.abs(value_function - value_function_old))
+            if delta < eps_value:
                 break
-            if k > min_iter and reward > self.expected_reward():
-                break
+        
+        # Compute Q-values for all state-action pairs
+        Q = np.sum(T * (R + self.gamma * value_function), axis=2)
+        
+        # Extract policy: deterministic policy that assigns probability 1 to best action
+        best_actions = np.argmax(Q, axis=1)
+        policy = np.zeros((self.solver.num_states, self.solver.num_actions))
+        policy[np.arange(self.solver.num_states), best_actions] = 1.0
+        
+        self.solver.set_policy_function(policy)
+        self.solver.set_value_function(value_function)
+        reward, steps = self.solve(max_steps=200, sample_size=eval_sample_size)
+        self.performance_history.append(reward)
 
-        # Final evaluation
-        reward, steps = self.solve(max_steps=200)
-        print(f"Final policy performance: Reward of {reward:.2f} after {steps} steps.")
+        print(
+            f"VI Iteration {i}, diff {delta:.6f}, "
+            f"elapsed {time.time() - iter_start_time:.3f}, "
+            f"performance {reward:.2f}"
+        )
 
     def solve(self, visualize: bool = False, max_steps: float = float("inf"), sample_size: int = 1) -> Tuple[float, float]:
         """
@@ -868,13 +803,10 @@ def plot_policy_curves(
 
 
 if __name__ == "__main__":
-    print(
-        "Testing Mountain Car with different policy computation methods and bin sizes..."
-    )
+    print("Testing Mountain Car with different bin sizes...")
 
     # Configuration
-    bin_sizes = [31]
-    temperatures = [0.1]
+    bin_sizes = [21, 51, 101]
     script_dir = os.path.dirname(os.path.abspath(__file__))
     figures_dir = os.path.join(script_dir, "..", "..", "hw4_rl", "figures")
     os.makedirs(figures_dir, exist_ok=True)
@@ -889,47 +821,43 @@ if __name__ == "__main__":
 
         # Test each algorithm
         algorithms = [
-            ("deterministic_vi", "Value Iteration", None),
-            ("deterministic_pi", "Policy Iteration", None),
-            ("stochastic_pi", "Stochastic PI", temperatures[0]),
+            # ("deterministic_vi", "nn"),
+            ("deterministic_vi", "linear"),
         ]
 
-        for policy_type, label, temp in algorithms:
-            print(f"\n--- Testing {label} ---")
+        for policy_type, mode in algorithms:
+            print(f"\n--- Testing {mode} ---")
             solver = DiscretizedSolver(
-                mode="linear",
+                mode=mode,
                 num_bins=n_bins,
                 policy_type=policy_type,
-                temperature=temp if temp is not None else 1.0,
+                temperature=1.0,
             )
 
             # Train and evaluate
             start_time = time.time()
             solver.compute_policy()
             elapsed_time = time.time() - start_time
-            print(f"Computed {label} Policy in {elapsed_time:.2f} seconds")
+            print(f"Computed {policy_type} {mode} Policy in {elapsed_time:.2f} seconds")
 
             # Plot results
             solver.plot_value_function(
                 solver.solver.get_value_function(),
                 os.path.join(
-                    figures_dir, f"mountaincar_{policy_type}_value_{n_bins}.png"
+                    figures_dir, f"MC_{mode}_value_{n_bins}.png"
                 ),
             )
             solver.plot_policy(
                 os.path.join(
-                    figures_dir, f"mountaincar_{policy_type}_policy_{n_bins}.png"
+                    figures_dir, f"MC_{mode}_policy_{n_bins}.png"
                 )
             )
 
             # Store results with readable names
-            if temp is not None:
-                result_key = (label, str(temp), str(n_bins))
-            else:
-                result_key = (label, "N/A", str(n_bins))
+            result_key = (mode, str(n_bins))
             all_results[result_key] = np.mean(solver.performance_history[-10:])
             bin_histories.append(solver.performance_history)
-            bin_labels.append(label)
+            bin_labels.append(mode)
 
         # Plot learning curves
         plot_policy_curves(
@@ -940,7 +868,7 @@ if __name__ == "__main__":
 
     # Print final comparison
     print("\n=== Final Performance Comparison ===")
-    print("\nBin Size | Algorithm | Temperature | Performance")
+    print("\nBin Size | Algorithm | Performance")
     print("-" * 50)
-    for (algo, temp, bins), value in sorted(all_results.items()):
-        print(f"{bins:8} | {algo:15} | {temp:10} | {value:11.2f}")
+    for (algo, bins), value in sorted(all_results.items()):
+        print(f"{bins:8} | {algo:15} | {value:11.2f}")
