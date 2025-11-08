@@ -362,6 +362,7 @@ class GridworldSolver:
         """
         plt.figure()
         plt.plot(range(len(reward_history)), reward_history)
+        plt.scatter(range(len(reward_history)), reward_history)
         plt.xlabel("Iteration")
         plt.ylabel("Return")
         plt.title(f"Policy Iteration Performance - {self.env_name} - gamma={self.gamma}")
@@ -661,6 +662,7 @@ class GridworldSolver:
 
         self.solver.set_policy_function(p_i)
         self.solver.set_value_function(v_i)
+        self.performance_history.append(self.solve(max_steps=20)[0])
 
     def _deterministic_policy_iteration(self) -> None:
         """
@@ -722,7 +724,7 @@ class GridworldSolver:
 
         v_i = np.zeros(unwrapped_env.num_states)
         for k in range(50):
-            print("Policy Iteration %d" % k)
+            # print("Policy Iteration %d" % k)
 
             # Policy Evaluation
             elapsed = time.time()
@@ -739,7 +741,7 @@ class GridworldSolver:
                     v_i[s] = value
 
             elapsed = time.time() - elapsed
-            print(".....Evaluate done in %g" % elapsed)
+            # print(".....Evaluate done in %g" % elapsed)
             elapsed = time.time()
 
             # Policy Improvement
@@ -767,12 +769,12 @@ class GridworldSolver:
             p_i = p_i_new  # Update policy
 
             elapsed = time.time() - elapsed
-            print(".....Improve done in %g" % elapsed)
+            # print(".....Improve done in %g" % elapsed)
 
             self.solver.set_policy_function(p_i)
             self.performance_history.append(self.solve(max_steps=20)[0])
             if stable:
-                print("Policy is stable. Stopping policy iteration.")
+                # print("Policy is stable. Stopping policy iteration.")
                 break
 
         self.solver.set_value_function(v_i)
@@ -781,30 +783,28 @@ class GridworldSolver:
 if __name__ == "__main__":
 
     ############ Q1.1 ############
-    gw0_pi_solver = GridworldSolver(policy_type="pi", gridworld_map_number=0)
-    gw1_pi_solver = GridworldSolver(policy_type="pi", gridworld_map_number=1)
-
-    for solver in [gw0_pi_solver, gw1_pi_solver]:
-        for gamma in [0.99, 0.9, 0.75, 0.5]:
-            solver.gamma = gamma
-            start_time = time.time()
-            solver.compute_policy()
-            elapsed_time = time.time() - start_time
-            print("Computed Q2 PI Policy in %g seconds" % elapsed_time)
-            solver.plot_policy_curve(solver.performance_history)
-            _, fig = solver.plot_value_function(solver.solver.get_value_function())
-            solver.plot_policy(solver.solver.get_policy_function(), ax=fig.axes[0])
+    # for map_number in [0, 1]:
+    #     solver = GridworldSolver(policy_type="pi", gridworld_map_number=map_number)
+    #     for gamma in [0.99, 0.9, 0.75, 0.5]:
+    #         solver.gamma = gamma
+    #         start_time = time.time()
+    #         solver.compute_policy()
+    #         elapsed_time = time.time() - start_time
+    #         print("Computed Map %d PI Policy in %g seconds" % (map_number, elapsed_time))
+    #         solver.plot_policy_curve(solver.performance_history)
+    #         _, fig = solver.plot_value_function(solver.solver.get_value_function())
+    #         solver.plot_policy(solver.solver.get_policy_function(), ax=fig.axes[0])
 
 
     ############ Q1.2 ############
-    gw0_vi_solver = GridworldSolver(policy_type="vi", gridworld_map_number=0)
-    gw1_vi_solver = GridworldSolver(policy_type="vi", gridworld_map_number=1)
-    for solver in [gw0_vi_solver, gw1_vi_solver]:
+    for map_number in [0, 1]:
+        solver = GridworldSolver(policy_type="vi", gridworld_map_number=map_number)
         for gamma in [0.99, 0.9, 0.75, 0.5]:
             solver.gamma = gamma
             start_time = time.time()
             solver.compute_policy()
             elapsed_time = time.time() - start_time
-            print("Computed Q1.a VI Policy in %g seconds" % elapsed_time)
+            print("Computed Map %d VI Policy in %g seconds" % (map_number, elapsed_time))
+            solver.plot_policy_curve(solver.performance_history)
             _, fig = solver.plot_value_function(solver.solver.get_value_function())
             solver.plot_policy(solver.solver.get_policy_function(), ax=fig.axes[0])

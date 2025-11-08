@@ -821,7 +821,7 @@ if __name__ == "__main__":
 
         # Test each algorithm
         algorithms = [
-            # ("deterministic_vi", "nn"),
+            ("deterministic_vi", "nn"),
             ("deterministic_vi", "linear"),
         ]
 
