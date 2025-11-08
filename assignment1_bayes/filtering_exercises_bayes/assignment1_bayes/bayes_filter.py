@@ -78,7 +78,6 @@ class BayesFilter:
                         if self._is_valid_move(next_pos):
                             new_belief[next_pos[0], next_pos[1]] += self.belief[i, j] * (1 - self.motion_noise) / 4
                         else:
-                            # If move is invalid (hits wall), robot stays in place
                             new_belief[i, j] += self.belief[i, j] * 0.25
 
             self.belief = new_belief / np.sum(new_belief)
