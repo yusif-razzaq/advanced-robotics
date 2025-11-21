@@ -12,7 +12,6 @@ sys.path.insert(0, str(package_root))
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 import time
 
 from filtering_exercises_particle_filter.environments import MultiModalWorld
@@ -33,7 +32,11 @@ def plot_robot_and_particles(ax, true_state, particles, weights, landmarks, obst
     
     # Plot particle directions (for a subset of particles)
     n_arrows = min(20, len(particles))
-    arrow_indices = np.random.choice(len(particles), n_arrows, p=weights/np.sum(weights))
+    weight_sum = np.sum(weights)
+    if weight_sum > 0:
+        arrow_indices = np.random.choice(len(particles), n_arrows, p=weights/weight_sum)
+    else:
+        arrow_indices = np.random.choice(len(particles), n_arrows)
     arrow_length = 0.3
     for idx in arrow_indices:
         dx = arrow_length * np.cos(particles[idx, 2])
@@ -74,9 +77,18 @@ def test_particle_filter_visualization():
     env.agent_heading = 0.0  # Facing right
     true_state = np.array([env.agent_pos[0], env.agent_pos[1], env.agent_heading])
     
+    # Track errors over time
+    times = []
+    x_errors = []
+    y_errors = []
+    heading_errors = []
+    
     try:
         # Run simulation
         for t in range(100):  # 10 seconds with dt=0.1
+            time_val = t * env.dt
+            times.append(time_val)
+            
             # Alternate between straight and curved motion
             if t % 20 < 10:
                 action = np.array([0.5, 0.0])  # Move straight
@@ -98,6 +110,18 @@ def test_particle_filter_visualization():
             next_state, _, _ = env.step(action)
             true_state = np.array([next_state[0], next_state[1], env.agent_heading])
             
+            # Calculate estimation error
+            est_state = pf.estimate_state()
+            x_error = true_state[0] - est_state[0]
+            y_error = true_state[1] - est_state[1]
+            # Handle circular heading error
+            heading_diff = true_state[2] - est_state[2]
+            heading_error = (heading_diff + np.pi) % (2 * np.pi) - np.pi
+            
+            x_errors.append(x_error)
+            y_errors.append(y_error)
+            heading_errors.append(heading_error)
+            
             # Visualize
             plot_robot_and_particles(ax, true_state, pf.particles, pf.weights,
                                    [], env.obstacles)
@@ -105,7 +129,7 @@ def test_particle_filter_visualization():
             plt.pause(0.001)
             
             # Display time
-            ax.text(0.02, 0.98, f'Time: {t*0.1:.1f}s',
+            ax.text(0.02, 0.98, f'Time: {time_val:.1f}s',
                    transform=ax.transAxes, fontsize=10,
                    verticalalignment='top')
             
@@ -113,6 +137,38 @@ def test_particle_filter_visualization():
         print("\nVisualization interrupted by user")
     
     plt.ioff()
+    
+    # Create error plots
+    if len(times) > 0:
+        fig_errors, axes = plt.subplots(3, 1, figsize=(12, 10))
+        
+        # X error plot
+        axes[0].plot(times, x_errors, 'b-', linewidth=1.5)
+        axes[0].axhline(y=0, color='k', linestyle='--', alpha=0.3)
+        axes[0].set_xlabel('Time (s)')
+        axes[0].set_ylabel('X Error (m)')
+        axes[0].set_title('X Position Estimation Error')
+        axes[0].grid(True, alpha=0.3)
+        
+        # Y error plot
+        axes[1].plot(times, y_errors, 'g-', linewidth=1.5)
+        axes[1].axhline(y=0, color='k', linestyle='--', alpha=0.3)
+        axes[1].set_xlabel('Time (s)')
+        axes[1].set_ylabel('Y Error (m)')
+        axes[1].set_title('Y Position Estimation Error')
+        axes[1].grid(True, alpha=0.3)
+        
+        # Heading error plot
+        axes[2].plot(times, np.degrees(heading_errors), 'r-', linewidth=1.5)
+        axes[2].axhline(y=0, color='k', linestyle='--', alpha=0.3)
+        axes[2].set_xlabel('Time (s)')
+        axes[2].set_ylabel('Heading Error (degrees)')
+        axes[2].set_title('Heading Estimation Error')
+        axes[2].grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.show()
+    
     plt.show()
 
 if __name__ == "__main__":
