@@ -102,14 +102,40 @@ def test_bayes_filter_visualization():
 
     # Run simulation
     true_state, _ = env.reset()  # Example true state
-    n_steps = 50
+    n_steps = 30
 
-    for _ in range(n_steps):
+    # Track states and errors for plotting
+    true_positions = []  # List of (row, col) tuples
+    estimated_positions = []  # List of (row, col) tuples
+    row_errors = []  # List of row error values
+    col_errors = []  # List of column error values
+    euclidean_errors = []  # List of Euclidean distance errors
+
+    for step in range(n_steps):
         # Generate measurements from true state
         measurements = env.get_measurements(true_state)
 
         # Update filter
         bayes_filter.update(measurements)
+
+        # Get estimated state (most likely)
+        estimated_state = bayes_filter.get_most_likely_state()
+        
+        # Track positions (row, column)
+        true_pos = (true_state[0], true_state[1])  # row, col
+        est_pos = (estimated_state[0], estimated_state[1])  # row, col
+        
+        true_positions.append(true_pos)
+        estimated_positions.append(est_pos)
+        
+        # Calculate errors
+        row_error = abs(true_pos[0] - est_pos[0])
+        col_error = abs(true_pos[1] - est_pos[1])
+        euclidean_error = np.sqrt(row_error**2 + col_error**2)
+        
+        row_errors.append(row_error)
+        col_errors.append(col_error)
+        euclidean_errors.append(euclidean_error)
 
         # Move true state (example: random walk)
         action = np.random.randint(0, 3)  # Random action (0: forward, 1: turn right, 2: turn left)
@@ -124,6 +150,23 @@ def test_bayes_filter_visualization():
         # time.sleep(0.25)  # Pause to see the update
 
     plt.ioff()
+    
+    # Create error plot
+    fig_error, ax_error = plt.subplots(figsize=(10, 6))
+    steps = np.arange(n_steps)
+    
+    ax_error.plot(steps, row_errors, 'r-', label='Row Error', linewidth=2, marker='o', markersize=4)
+    ax_error.plot(steps, col_errors, 'b-', label='Column Error', linewidth=2, marker='s', markersize=4)
+    # ax_error.plot(steps, euclidean_errors, 'g-', label='Euclidean Distance Error', linewidth=2, marker='^', markersize=4)
+    
+    ax_error.set_xlabel('Time Step', fontsize=12)
+    ax_error.set_ylabel('Estimation Error', fontsize=12)
+    ax_error.set_title('Bayes Filter Estimation Error Over Time', fontsize=14)
+    ax_error.legend(fontsize=10)
+    ax_error.grid(True, alpha=0.3)
+    ax_error.set_xlim(0, n_steps - 1)
+    
+    plt.tight_layout()
     plt.show()
 
 

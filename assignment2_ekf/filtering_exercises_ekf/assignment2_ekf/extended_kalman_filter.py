@@ -139,22 +139,22 @@ class ExtendedKalmanFilter:
         speed_factor = np.clip(speed, 0.5, 1.5)
         effective_angular_vel = angular_vel / speed_factor
         F = np.eye(3)
-        F[0,0] = 1 + dt * np.cos(theta) * dvs_dx
-        F[0,1] = dt * np.cos(theta) * dvs_dy
+        F[0,0] = 1 + dt * np.cos(theta) * dvs_dx * effective_vel
+        F[0,1] = dt * np.cos(theta) * dvs_dy * effective_vel
         F[0,2] = -dt * effective_vel * np.sin(theta)
-        F[1,0] = dt * np.sin(theta) * dvs_dx
-        F[1,1] = 1 + dt * np.sin(theta) * dvs_dy
+        F[1,0] = dt * np.sin(theta) * dvs_dx * effective_vel
+        F[1,1] = 1 + dt * np.sin(theta) * dvs_dy * effective_vel
         F[1,2] = dt * effective_vel * np.cos(theta)
-        F[2,0] = - dt * effective_vel * dvs_dx * effective_angular_vel / np.abs(effective_vel)**2
-        F[2,1] = - dt * effective_vel * dvs_dy * effective_angular_vel / np.abs(effective_vel)**2
+        F[2,0] = - dt * effective_vel * dvs_dx * effective_angular_vel * forward_vel / np.abs(effective_vel)**2
+        F[2,1] = - dt * effective_vel * dvs_dy * effective_angular_vel * forward_vel / np.abs(effective_vel)**2
         F[2,2] = 1
         return F
 
     def _get_velocity_scaling_derivatives(self, position: np.ndarray) -> Tuple[float, float]:
         """Get the derivatives of the velocity scaling with respect to x and y."""
         x, y = position
-        dvs_dx = -0.5 * self.env.terrain_frequency * np.cos(self.env.terrain_frequency * x) * np.sin(self.env.terrain_frequency * y)
-        dvs_dy = -0.5 * self.env.terrain_frequency * np.sin(self.env.terrain_frequency * x) * np.cos(self.env.terrain_frequency * y)
+        dvs_dx = 0.5 * self.env.terrain_frequency * np.cos(self.env.terrain_frequency * x) * np.cos(self.env.terrain_frequency * y)
+        dvs_dy = -0.5 * self.env.terrain_frequency * np.sin(self.env.terrain_frequency * x) * np.sin(self.env.terrain_frequency * y)
         return dvs_dx, dvs_dy
 
     def _measurement_model(self, state: np.ndarray) -> np.ndarray:
